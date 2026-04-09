@@ -332,18 +332,36 @@ def _get_sector(ticker):
 
 
 def _build_spy_curve(config, end_date):
-    """Build SPY equity curve scaled to starting capital."""
-    import yfinance as yf
+    """Build SPY equity curve scaled to starting capital.
+
+    Uses local price cache first (reliable), falls back to yfinance.
+    """
     start = config["start_date"]
     initial = config["starting_capital"]
+    trader_root = config["trader_root"]
+
+    # Try cached price data first
+    cache_path = os.path.join(trader_root, "data", "prices", "SPY.csv")
     try:
-        spy = yf.download("SPY", start=start, end=end_date, progress=False)
+        if os.path.exists(cache_path):
+            spy = pd.read_csv(cache_path, index_col=0, parse_dates=True)
+        else:
+            import yfinance as yf
+            spy = yf.download("SPY", start=start, end=end_date, progress=False)
+
         if spy.empty:
             return []
-        # Handle multi-level columns from yfinance
+        # Handle multi-level columns
         if isinstance(spy.columns, pd.MultiIndex):
             spy.columns = spy.columns.get_level_values(0)
-        entry_price = float(spy["Open"].iloc[0])
+
+        # Filter to date range
+        mask = (spy.index >= pd.Timestamp(start)) & (spy.index <= pd.Timestamp(end_date))
+        spy = spy.loc[mask]
+        if spy.empty:
+            return []
+
+        entry_price = float(spy["Open"].iloc[0]) if "Open" in spy.columns else float(spy["Close"].iloc[0])
         shares = initial / entry_price
         curve = []
         for idx, row in spy.iterrows():
