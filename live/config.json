@@ -6,7 +6,7 @@
   "frequency": "biweekly",
   "exec_model": "premarket",
   "slippage": 0.0005,
-  "gist_id": "",
+  "gist_id": "c1c88dc455cb02dbdbf70514f0c53bf9",
   "strategy_display": "MixLLM",
   "timezone": "America/Los_Angeles"
 }
