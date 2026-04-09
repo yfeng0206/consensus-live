@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ConsensusAITrader - Live Trading</title>
+  <style>
+    /* ── Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0d1117;
+      color: #d8dee9;
+      padding: 1.5rem;
+      max-width: 960px;
+      margin: 0 auto;
+      line-height: 1.5;
+    }
+    a { color: #88c0d0; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Header ── */
+    .header { margin-bottom: 1.5rem; }
+    .header h1 { font-size: 1.4em; color: #e5e9f0; margin-bottom: 0.3rem; }
+    .header p { font-size: 0.85em; color: #8892a4; }
+
+    /* ── Data source info ── */
+    .data-source {
+      font-size: 0.8em;
+      color: #6b7280;
+      margin-bottom: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    /* ── Status banner ── */
+    .status-banner {
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      margin-bottom: 1.2rem;
+      font-size: 0.85em;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .status-live { background: #1a3a2a; border: 1px solid #a3be8c; color: #a3be8c; }
+    .status-stale { background: #3b2e1a; border: 1px solid #d08770; color: #d08770; }
+    .status-loading { background: #1e222a; border: 1px solid #4c566a; color: #8892a4; }
+
+    /* ── Summary cards ── */
+    .live-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+      gap: 0.8rem;
+      margin-bottom: 1.5rem;
+    }
+    .live-card {
+      background: #1e222a;
+      border: 1px solid #2e3440;
+      border-radius: 8px;
+      padding: 0.9rem 1rem;
+    }
+    .live-card .lc-label {
+      font-size: 0.75em;
+      color: #8892a4;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.25rem;
+    }
+    .live-card .lc-value { font-size: 1.4em; font-weight: 600; color: #e5e9f0; }
+    .live-card .lc-sub { font-size: 0.82em; margin-top: 0.15rem; }
+    .pos { color: #a3be8c; }
+    .neg { color: #bf616a; }
+    .muted { color: #8892a4; }
+
+    /* ── Chart ── */
+    .chart-wrap {
+      background: #1e222a;
+      border: 1px solid #2e3440;
+      border-radius: 8px;
+      padding: 1.2rem;
+      margin-bottom: 1.5rem;
+    }
+    .chart-wrap .cw-title {
+      font-size: 0.95em;
+      font-weight: 600;
+      color: #d8dee9;
+      margin-bottom: 0.8rem;
+    }
+    .chart-wrap canvas { max-height: 320px; }
+
+    /* ── Tables ── */
+    .lt-table-wrap {
+      background: #1e222a;
+      border: 1px solid #2e3440;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      overflow-x: auto;
+    }
+    .lt-table-wrap h3 {
+      margin: 0 0 0.8rem 0;
+      font-size: 1em;
+      color: #d8dee9;
+    }
+    .lt-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86em;
+    }
+    .lt-table th {
+      text-align: left;
+      padding: 0.5rem 0.7rem;
+      color: #8892a4;
+      font-weight: 500;
+      font-size: 0.82em;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      border-bottom: 1px solid #2e3440;
+    }
+    .lt-table td {
+      padding: 0.5rem 0.7rem;
+      color: #d8dee9;
+      border-bottom: 1px solid #2e3440;
+    }
+    .lt-table tr:last-child td { border-bottom: none; }
+    .lt-table .ticker { font-weight: 600; color: #88c0d0; }
+    .badge-buy {
+      display: inline-block;
+      background: #2d4a3e; color: #a3be8c;
+      padding: 0.12rem 0.45rem; border-radius: 4px;
+      font-size: 0.82em; font-weight: 500;
+    }
+    .badge-sell {
+      display: inline-block;
+      background: #4a2d2d; color: #bf616a;
+      padding: 0.12rem 0.45rem; border-radius: 4px;
+      font-size: 0.82em; font-weight: 500;
+    }
+
+    /* ── Strategy badge ── */
+    .strategy-tag {
+      display: inline-block;
+      background: #2d3a4a; color: #88c0d0;
+      padding: 0.15rem 0.6rem; border-radius: 4px;
+      font-size: 0.82em; font-weight: 500;
+    }
+
+    /* ── Allocation bar ── */
+    .sec-title { font-size: 1.05em; font-weight: 600; color: #d8dee9; margin-bottom: 0.8rem; }
+    .alloc-bar {
+      display: flex;
+      border-radius: 6px;
+      overflow: hidden;
+      height: 28px;
+      margin-bottom: 0.5rem;
+      background: #2e3440;
+    }
+    .alloc-seg {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.72em; font-weight: 600; color: #e5e9f0;
+      white-space: nowrap; overflow: hidden;
+      transition: width 0.5s ease;
+    }
+    .alloc-legend {
+      display: flex; flex-wrap: wrap; gap: 0.8rem;
+      font-size: 0.78em; color: #8892a4;
+      margin-bottom: 1.5rem;
+    }
+    .alloc-legend span { display: flex; align-items: center; gap: 0.3rem; }
+    .alloc-dot {
+      display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+    }
+
+    /* ── Footer ── */
+    .footer { font-size: 0.78em; color: #4c566a; margin-top: 2rem; }
+    .footer a { color: #5e81ac; }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="header">
+  <h1>ConsensusAITrader - Live Trading</h1>
+  <p>MixLLM strategy running daily with $100k starting capital</p>
+</div>
+
+<div id="statusBanner" class="status-banner status-loading">
+  Loading data...
+</div>
+
+<div class="data-source">
+  <span>Strategy: <span class="strategy-tag" id="strategyName">MixLLM</span></span>
+  <span>Last updated: <span id="lastUpdated">--</span></span>
+</div>
+
+<!-- Summary Cards -->
+<div class="live-summary" id="summaryCards"></div>
+
+<!-- Allocation Bar -->
+<div class="sec-title">Portfolio Allocation</div>
+<div class="alloc-bar" id="allocBar"></div>
+<div class="alloc-legend" id="allocLegend"></div>
+
+<!-- Equity Curve -->
+<div class="chart-wrap">
+  <div class="cw-title">Portfolio Value vs SPY</div>
+  <canvas id="equityChart"></canvas>
+</div>
+
+<!-- Current Positions -->
+<div class="lt-table-wrap">
+  <h3>Current Positions <span class="muted" style="font-weight:400;font-size:0.85em;" id="posCount"></span></h3>
+  <table class="lt-table">
+    <thead>
+      <tr><th>Ticker</th><th>Shares</th><th>Avg Cost</th><th>Price</th><th>Value</th><th>P&amp;L</th><th>%</th></tr>
+    </thead>
+    <tbody id="positionsBody"></tbody>
+  </table>
+</div>
+
+<!-- Trade History -->
+<div class="lt-table-wrap">
+  <h3>Recent Trades <span class="muted" style="font-weight:400;font-size:0.85em;" id="tradeCount"></span></h3>
+  <table class="lt-table">
+    <thead>
+      <tr><th>Date</th><th>Action</th><th>Ticker</th><th>Shares</th><th>Price</th><th>Total</th><th>Reason</th></tr>
+    </thead>
+    <tbody id="tradesBody"></tbody>
+  </table>
+  <div id="showMoreWrap" style="display:none;text-align:center;padding:0.8rem 0 0.3rem;">
+    <button id="showMoreBtn" style="background:none;border:1px solid #4c566a;color:#88c0d0;padding:0.4rem 1.2rem;border-radius:6px;cursor:pointer;font-size:0.85em;">Show All Trades</button>
+  </div>
+</div>
+
+<p class="footer">
+  Powered by <a href="https://github.com/yfeng0206/ConsensusAITrader">ConsensusAITrader</a>.
+  Not financial advice. Past performance does not predict future results.
+</p>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"
+        integrity="sha384-vsrfeLOOY6KuIYKDlmVH5UiBmgIdB1oEf7p01YgWHuqmOHfZr374+odEv96n9tNC"
+        crossorigin="anonymous"></script>
+<script>
+/*
+ * DATA SOURCE
+ * Change GIST_URL to your gist's raw URL after creating it.
+ * Falls back to local dashboard.json for development.
+ */
+const GIST_URL = '%%GIST_URL%%';
+
+async function loadData() {
+  // Try gist first
+  if (GIST_URL && !GIST_URL.includes('%%')) {
+    try {
+      const resp = await fetch(GIST_URL + '?t=' + Date.now());
+      if (resp.ok) return resp.json();
+    } catch (e) { console.warn('Gist fetch failed, trying local:', e); }
+  }
+  // Fallback: local file (for dev/testing)
+  try {
+    const resp = await fetch('live/dashboard.json?t=' + Date.now());
+    if (resp.ok) return resp.json();
+  } catch (e) { /* ignore */ }
+  // Final fallback: embedded placeholder
+  return null;
+}
+
+function fmt$(n) { return '$' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}); }
+function fmtPct(n) { return (n >= 0 ? '+' : '') + n.toFixed(2) + '%'; }
+function fmtPnl(n) { return (n >= 0 ? '+$' : '-$') + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}); }
+function cls(n) { return n >= 0 ? 'pos' : 'neg'; }
+
+async function render() {
+  const d = await loadData();
+
+  if (!d) {
+    document.getElementById('statusBanner').className = 'status-banner status-stale';
+    document.getElementById('statusBanner').innerHTML = 'No data available yet. Live trading starts April 10, 2026.';
+    document.getElementById('summaryCards').innerHTML =
+      '<div class="live-card"><div class="lc-label">Status</div><div class="lc-value">Waiting</div><div class="lc-sub muted">First run pending</div></div>';
+    return;
+  }
+
+  // Status banner
+  const ts = new Date(d.last_updated);
+  const hoursAgo = (Date.now() - ts.getTime()) / 3600000;
+  const banner = document.getElementById('statusBanner');
+  if (hoursAgo < 24) {
+    banner.className = 'status-banner status-live';
+    banner.innerHTML = 'Live - Updated ' + ts.toLocaleString('en-US', {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
+  } else {
+    banner.className = 'status-banner status-stale';
+    banner.innerHTML = 'Stale data - Last updated ' + ts.toLocaleString('en-US', {month:'short', day:'numeric', year:'numeric'});
+  }
+
+  // Last updated
+  document.getElementById('lastUpdated').textContent =
+    ts.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) +
+    ' ' + ts.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+
+  // Strategy name
+  document.getElementById('strategyName').textContent = d.strategy || 'MixLLM';
+
+  // Summary cards
+  const a = d.account;
+  const cards = [
+    { label: 'Portfolio Value', value: fmt$(a.total_value), sub: fmtPnl(a.day_pnl) + ' today', cls: cls(a.day_pnl) },
+    { label: 'Total Return', value: fmtPct(a.total_return_pct), sub: fmtPnl(a.total_return_usd) + ' on ' + fmt$(a.starting_capital), cls: cls(a.total_return_pct) },
+    { label: 'Cash', value: fmt$(a.cash), sub: (a.cash / a.total_value * 100).toFixed(1) + '% of portfolio', cls: 'muted' },
+    { label: 'Invested', value: fmt$(a.invested), sub: d.positions.length + ' positions', cls: 'muted' },
+    { label: 'Regime', value: d.regime, sub: d.strategy + ' strategy', cls: 'muted' }
+  ];
+  document.getElementById('summaryCards').innerHTML = cards.map(function(c) {
+    return '<div class="live-card">' +
+      '<div class="lc-label">' + c.label + '</div>' +
+      '<div class="lc-value' + (c.label === 'Total Return' ? ' ' + c.cls : '') + '">' + c.value + '</div>' +
+      '<div class="lc-sub ' + c.cls + '">' + c.sub + '</div>' +
+    '</div>';
+  }).join('');
+
+  // Allocation bar
+  var al = d.allocation;
+  var allocColors = { stocks: '#88c0d0', bonds: '#5e81ac', gold: '#ebcb8b', cash: '#4c566a' };
+  var barHtml = '', legendHtml = '';
+  for (var k in al) {
+    if (al[k] > 0) {
+      barHtml += '<div class="alloc-seg" style="width:' + al[k] + '%;background:' + allocColors[k] + ';">' + (al[k] >= 8 ? al[k] + '%' : '') + '</div>';
+      legendHtml += '<span><span class="alloc-dot" style="background:' + allocColors[k] + ';"></span>' + k.charAt(0).toUpperCase() + k.slice(1) + ' ' + al[k] + '%</span>';
+    }
+  }
+  document.getElementById('allocBar').innerHTML = barHtml;
+  document.getElementById('allocLegend').innerHTML = legendHtml;
+
+  // Positions table
+  var posHtml = '';
+  d.positions.forEach(function(p) {
+    var val = p.shares * p.current_price;
+    var cost = p.shares * p.avg_cost;
+    var pnl = val - cost;
+    var pnlPct = cost > 0 ? (pnl / cost * 100) : 0;
+    posHtml += '<tr>' +
+      '<td class="ticker">' + p.ticker + '</td>' +
+      '<td>' + p.shares + '</td>' +
+      '<td>$' + p.avg_cost.toFixed(2) + '</td>' +
+      '<td>$' + p.current_price.toFixed(2) + '</td>' +
+      '<td>' + fmt$(val) + '</td>' +
+      '<td class="' + cls(pnl) + '">' + fmtPnl(pnl) + '</td>' +
+      '<td class="' + cls(pnlPct) + '">' + fmtPct(pnlPct) + '</td>' +
+    '</tr>';
+  });
+  document.getElementById('positionsBody').innerHTML = posHtml || '<tr><td colspan="7" class="muted" style="text-align:center;">No positions yet — first rebalance on the 1st or 15th</td></tr>';
+  document.getElementById('posCount').textContent = '(' + d.positions.length + ')';
+
+  // Trades
+  var TRADES_LIMIT = 20;
+  var allTrades = d.trades || [];
+  function buildTradeRow(t) {
+    var badge = t.action === 'BUY' ? 'badge-buy' : 'badge-sell';
+    var total = t.shares * t.price;
+    return '<tr>' +
+      '<td>' + t.date + '</td>' +
+      '<td><span class="' + badge + '">' + t.action + '</span></td>' +
+      '<td class="ticker">' + t.ticker + '</td>' +
+      '<td>' + t.shares + '</td>' +
+      '<td>$' + t.price.toFixed(2) + '</td>' +
+      '<td>' + fmt$(total) + '</td>' +
+      '<td style="color:#6b7280;font-size:0.9em;">' + (t.reason || '') + '</td>' +
+    '</tr>';
+  }
+  var visibleTrades = allTrades.slice(0, TRADES_LIMIT);
+  var hiddenTrades = allTrades.slice(TRADES_LIMIT);
+  document.getElementById('tradesBody').innerHTML = visibleTrades.map(buildTradeRow).join('') ||
+    '<tr><td colspan="7" class="muted" style="text-align:center;">No trades yet</td></tr>';
+  document.getElementById('tradeCount').textContent = allTrades.length > 0 ?
+    '(showing ' + visibleTrades.length + ' of ' + allTrades.length + ')' : '';
+
+  if (hiddenTrades.length > 0) {
+    var wrap = document.getElementById('showMoreWrap');
+    var btn = document.getElementById('showMoreBtn');
+    wrap.style.display = 'block';
+    btn.textContent = 'Show All ' + allTrades.length + ' Trades';
+    btn.onclick = function() {
+      document.getElementById('tradesBody').innerHTML = allTrades.map(buildTradeRow).join('');
+      document.getElementById('tradeCount').textContent = '(all ' + allTrades.length + ' trades)';
+      wrap.style.display = 'none';
+    };
+  }
+
+  // Equity curve chart
+  var eqCurve = d.equity_curve || [];
+  if (eqCurve.length === 0) return; // nothing to chart yet
+
+  var labels = eqCurve.map(function(e) {
+    var dt = new Date(e.date + 'T12:00:00');
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  });
+  var values = eqCurve.map(function(e) { return e.value; });
+
+  // SPY curve from data (real, not random)
+  var spyCurve = d.spy_curve || [];
+  var spyValues = [];
+  if (spyCurve.length > 0) {
+    // Align SPY dates to equity curve dates
+    var spyMap = {};
+    spyCurve.forEach(function(s) { spyMap[s.date] = s.value; });
+    spyValues = eqCurve.map(function(e) { return spyMap[e.date] || null; });
+  }
+
+  var datasets = [
+    {
+      label: 'Portfolio',
+      data: values,
+      borderColor: '#88c0d0',
+      backgroundColor: 'rgba(136, 192, 208, 0.08)',
+      fill: true,
+      borderWidth: 2.5,
+      pointRadius: 0,
+      pointHitRadius: 10,
+      tension: 0.3
+    }
+  ];
+  if (spyValues.length > 0) {
+    datasets.push({
+      label: 'SPY (scaled)',
+      data: spyValues,
+      borderColor: '#4c566a',
+      borderWidth: 1.5,
+      borderDash: [6, 3],
+      pointRadius: 0,
+      pointHitRadius: 10,
+      tension: 0.3
+    });
+  }
+
+  var ctx = document.getElementById('equityChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: { labels: labels, datasets: datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: '#d8dee9', usePointStyle: true, pointStyle: 'line', padding: 20, font: { size: 12 } }
+        },
+        tooltip: {
+          backgroundColor: '#2e3440',
+          titleColor: '#d8dee9',
+          bodyColor: '#d8dee9',
+          borderColor: '#4c566a',
+          borderWidth: 1,
+          padding: 10,
+          callbacks: {
+            label: function(context) {
+              return context.dataset.label + ': $' + context.parsed.y.toLocaleString();
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#6b7280', maxRotation: 0, autoSkip: true, maxTicksLimit: 8, font: { size: 11 } },
+          grid: { color: 'rgba(78, 86, 102, 0.2)' }
+        },
+        y: {
+          ticks: {
+            color: '#6b7280',
+            font: { size: 11 },
+            callback: function(v) { return '$' + (v / 1000).toFixed(0) + 'k'; }
+          },
+          grid: { color: 'rgba(78, 86, 102, 0.2)' }
+        }
+      }
+    }
+  });
+}
+
+render().catch(function(err) {
+  console.error('Dashboard render failed:', err);
+  document.getElementById('statusBanner').className = 'status-banner status-stale';
+  document.getElementById('statusBanner').innerHTML = 'Error loading dashboard. Check console.';
+});
+</script>
+</body>
+</html>

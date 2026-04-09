@@ -1,0 +1,16 @@
+# State files (contain portfolio data - don't expose)
+live/state.json
+live/state.json.tmp
+live/dashboard.json
+
+# Logs
+live/logs/
+
+# Python
+__pycache__/
+*.pyc
+.env
+
+# OS
+.DS_Store
+Thumbs.db

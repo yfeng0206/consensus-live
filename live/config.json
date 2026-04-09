@@ -1,0 +1,12 @@
+{
+  "trader_root": "C:/Users/garyfeng/OneDrive - Microsoft/Desktop/Stock Research",
+  "start_date": "2026-04-10",
+  "starting_capital": 100000,
+  "max_positions": 10,
+  "frequency": "biweekly",
+  "exec_model": "premarket",
+  "slippage": 0.0005,
+  "gist_id": "",
+  "strategy_display": "MixLLM",
+  "timezone": "America/Los_Angeles"
+}
