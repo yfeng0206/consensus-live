@@ -86,9 +86,19 @@ def save_state(state):
 
 
 def collect_data(trader_root):
-    """Collect today's news and refresh price cache."""
+    """Collect today's news. Prices are handled by download_data() automatically.
+
+    Price logic (in daily_loop.py download_data):
+      - Cache exists and fresh? Use it, no download.
+      - Cache exists but stale? Download ONLY the gap (a few days), merge, save.
+      - No cache? Full download, save.
+      - Never re-downloads data that's already cached.
+
+    So we only need to collect news here. Prices are pulled on-demand by the sim.
+    """
     print("Collecting today's data...")
-    # News
+
+    # News (checks what's missing, only collects gaps)
     try:
         subprocess.run(
             [sys.executable, os.path.join(trader_root, "tools", "daily_collect.py")],
@@ -98,15 +108,7 @@ def collect_data(trader_root):
     except Exception as e:
         print(f"  News collection warning: {e}")
 
-    # Prices (prefetch updates cache)
-    try:
-        subprocess.run(
-            [sys.executable, os.path.join(trader_root, "eval", "prefetch_prices.py")],
-            cwd=trader_root, timeout=300, capture_output=True
-        )
-        print("  Prices refreshed.")
-    except Exception as e:
-        print(f"  Price refresh warning: {e}")
+    print("  Prices: handled automatically by sim (cache-first, incremental).")
 
 
 def run_trading_day(config, resume_state, start_date, end_date):
