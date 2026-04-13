@@ -43,20 +43,30 @@ def setup_paths(config):
 
 
 def is_trading_day(date_str):
-    """Check if a date is a US trading day (weekday, not a major holiday)."""
+    """Check if a date is a US trading day using SPY price data as ground truth.
+
+    If SPY has a price bar for this date, the market was open. No guessing holidays.
+    Falls back to weekday check if no cache available.
+    """
     dt = pd.Timestamp(date_str)
-    # Basic check: weekday
     if dt.weekday() >= 5:
         return False
-    # Major US market holidays (approximate — covers the big ones)
-    month_day = (dt.month, dt.day)
-    # New Year's, MLK (3rd Mon Jan), Presidents (3rd Mon Feb), Good Friday (varies),
-    # Memorial Day (last Mon May), Juneteenth, July 4, Labor Day (1st Mon Sep),
-    # Thanksgiving (4th Thu Nov), Christmas
-    fixed_holidays = [(1, 1), (6, 19), (7, 4), (12, 25)]
-    if month_day in fixed_holidays:
-        return False
-    return True
+    # Use SPY cache as ground truth for holidays
+    try:
+        config = load_config()
+        spy_path = os.path.join(config["trader_root"], "data", "prices", "SPY.csv")
+        if os.path.exists(spy_path):
+            spy = pd.read_csv(spy_path, index_col=0, parse_dates=True)
+            spy_dates = set(spy.index.strftime("%Y-%m-%d"))
+            # For future dates not yet in cache, assume trading day if weekday
+            if date_str in spy_dates:
+                return True
+            if dt > spy.index.max():
+                return True  # future date, assume open if weekday
+            return False  # past weekday with no SPY data = holiday
+    except Exception:
+        pass
+    return True  # fallback: weekday = trading day
 
 
 def get_trading_days_since(last_date, end_date):
@@ -98,15 +108,18 @@ def collect_data(trader_root):
     """
     print("Collecting today's data...")
 
-    # News (checks what's missing, only collects gaps)
+    # News (checks what's missing, only collects gaps — works weekends too)
     try:
-        subprocess.run(
+        result = subprocess.run(
             [sys.executable, os.path.join(trader_root, "tools", "daily_collect.py")],
-            cwd=trader_root, timeout=120, capture_output=True
+            cwd=trader_root, timeout=120, capture_output=True, text=True
         )
-        print("  News collected.")
+        if result.returncode != 0:
+            print(f"  News collection FAILED (exit {result.returncode}): {result.stderr[:200]}")
+        else:
+            print("  News collected.")
     except Exception as e:
-        print(f"  News collection warning: {e}")
+        print(f"  News collection ERROR: {e}")
 
     print("  Prices: handled automatically by sim (cache-first, incremental).")
 
