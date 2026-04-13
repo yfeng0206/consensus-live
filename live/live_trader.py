@@ -42,41 +42,9 @@ def setup_paths(config):
             sys.path.insert(0, p)
 
 
-def is_trading_day(date_str):
-    """Check if a date is a US trading day using SPY price data as ground truth.
-
-    If SPY has a price bar for this date, the market was open. No guessing holidays.
-    Falls back to weekday check if no cache available.
-    """
-    dt = pd.Timestamp(date_str)
-    if dt.weekday() >= 5:
-        return False
-    # Use SPY cache as ground truth for holidays
-    try:
-        config = load_config()
-        spy_path = os.path.join(config["trader_root"], "data", "prices", "SPY.csv")
-        if os.path.exists(spy_path):
-            spy = pd.read_csv(spy_path, index_col=0, parse_dates=True)
-            spy_dates = set(spy.index.strftime("%Y-%m-%d"))
-            # For future dates not yet in cache, assume trading day if weekday
-            if date_str in spy_dates:
-                return True
-            if dt > spy.index.max():
-                return True  # future date, assume open if weekday
-            return False  # past weekday with no SPY data = holiday
-    except Exception:
-        pass
-    return True  # fallback: weekday = trading day
-
-
-def get_trading_days_since(last_date, end_date):
-    """Get trading days from last_date (exclusive) to end_date (inclusive)."""
-    days = pd.date_range(
-        start=pd.Timestamp(last_date) + pd.Timedelta(days=1),
-        end=end_date,
-        freq="B"
-    )
-    return [d.strftime("%Y-%m-%d") for d in days]
+    # No is_trading_day() needed — the sim uses SPY price data as ground truth.
+    # No hardcoded holiday list to maintain. If SPY has no bar, market was closed.
+    # The script always runs. Weekends/holidays just collect news, 0 trading days.
 
 
 def load_state():
@@ -447,12 +415,6 @@ def main():
     print(f"Date: {today} | Start: {start_date} | Capital: ${config['starting_capital']:,.0f}")
     print("=" * 60)
 
-    # Check if today is a trading day
-    if not is_trading_day(today) and not args.force:
-        print(f"{today} is not a trading day. Use --force to override.")
-        log_run(f"Skipped: {today} not a trading day")
-        return
-
     # Load existing state
     state = load_state()
     if state:
@@ -472,11 +434,17 @@ def main():
         sim_start = start_date
         state = None
 
-    # Collect fresh data (unless --no-collect or --morning)
+    # Always collect news — news happens 7 days a week (weekends, holidays too)
+    # Prices are handled automatically by the sim (cache-first, incremental)
     if not args.no_collect and not args.morning:
         collect_data(trader_root)
 
     # Run simulation for the new days
+    # The sim uses SPY price data as ground truth for trading days.
+    # No hardcoded holiday list — if SPY has no bar, market was closed.
+    # Weekends/holidays: 0 new trading days processed, but news is captured.
+    # Monday after holiday weekend: processes all missed trading days at once.
+    # e.g., run Sunday → Mon holiday → run Tuesday: processes Tuesday with all weekend news.
     print(f"\nProcessing: {sim_start} to {today}")
     log_run(f"Running: {sim_start} to {today}")
 
