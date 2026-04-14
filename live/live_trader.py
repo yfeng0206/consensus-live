@@ -99,7 +99,7 @@ def run_trading_day(config, resume_state, start_date, end_date):
     """
     from daily_loop import run_daily_simulation, save_strategies_state
 
-    results, strategies = run_daily_simulation(
+    results, strategies, trigger_engine = run_daily_simulation(
         start=start_date,
         end=end_date,
         initial_cash=config["starting_capital"],
@@ -114,10 +114,17 @@ def run_trading_day(config, resume_state, start_date, end_date):
         quiet=False,
     )
 
-    # Save state checkpoint
-    new_state = save_strategies_state(strategies, end_date)
+    # Save state checkpoint — use actual last processed date, not requested end_date
+    # This prevents skipping days when market was closed (weekend/holiday)
+    actual_last_date = end_date
+    for s in strategies:
+        if s.portfolio_history:
+            actual_last_date = s.portfolio_history[-1].get("date", end_date)
+            break
+    new_state = save_strategies_state(strategies, actual_last_date,
+                                      trigger_engine=trigger_engine)
     save_state(new_state)
-    print(f"State saved. Last date: {end_date}")
+    print(f"State saved. Last date: {actual_last_date}")
 
     return results, strategies
 
